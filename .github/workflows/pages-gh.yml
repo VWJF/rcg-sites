@@ -66,11 +66,8 @@ on:
         required: false
         default: ''
 
-# Allow one concurrent deployment
-concurrency:
-  group: ${{ github.repository }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('branch-{0}', github.ref_name) }}
-  cancel-in-progress: true
-
+# Concurrency lives on each site's thin entrypoint (distinct groups per workflow),
+# not here — nested reusable workflows sharing the caller's group deadlock in Actions.
 jobs:
   generate-timestamp:
     permissions: {}
