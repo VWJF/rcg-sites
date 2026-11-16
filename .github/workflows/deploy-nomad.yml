@@ -62,6 +62,22 @@ on:
         type: string
         required: false
         default: ''
+    # Named secrets so cross-repo callers can pass environment secrets explicitly
+    # (secrets: inherit alone does not deliver caller environment secrets across owners).
+    # required: false — empty string if omitted; set required: true later to fail closed.
+    secrets:
+      NOMAD_SERVER_TOKEN:
+        required: false
+      NOMAD_SERVER_ADDRESS:
+        required: false
+      NOMAD_REGISTRY_PASSWORD:
+        required: false
+      __RESEARCHER__:
+        required: false
+      __DOMAIN_NAME__:
+        required: false
+      OAUTH_GITHUB_CLIENT_SECRET:
+        required: false
 
 jobs:
 ############################################
