@@ -7,8 +7,7 @@ Reusable RCG site pipelines and shared GitHub Actions (Docker, nginx, Nomad, `.g
 | Branch | Meaning |
 | --- | --- |
 | `main` | Library entry (this README). |
-| [`from-coastal-science`](https://github.com/VWJF/rcg-sites/tree/from-coastal-science) | Filtered import from coastal-science `main`: `.github/`, `nomad/`, `nginx/`, Dockerfiles, docker-compose, `entrypoint.sh`. Commit **authors and dates preserved**; site content history omitted. |
-| [`from-coastal-science-modular`](https://github.com/VWJF/rcg-sites/tree/from-coastal-science-modular) | Same filter from `refactor/ghaworkflow-modular`. |
+| [`refactor-from-cs`](https://github.com/VWJF/rcg-sites/tree/refactor-from-cs) | Filtered from [`coastal-science/coastal-science.github.io`](https://github.com/coastal-science/coastal-science.github.io) `main`: `.github/`, `nomad/`, `nginx/`, Dockerfiles, docker-compose, `entrypoint.sh`. Original commit **authors and dates** preserved; Hugo site content omitted. |
 
 ## Scope
 
