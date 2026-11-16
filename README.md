@@ -1,17 +1,19 @@
 # rcg-sites
 
-Reusable RCG site pipelines and shared GitHub Actions.
+Reusable RCG site pipelines and shared GitHub Actions (Docker, nginx, Nomad, `.github`).
 
 ## Branches
 
 | Branch | Meaning |
 | --- | --- |
-| `main` | Library / product entry (starts empty aside from this README). |
-| [`from-coastal-science`](https://github.com/VWJF/rcg-sites/tree/from-coastal-science) | Full git history imported from [`coastal-science/coastal-science.github.io`](https://github.com/coastal-science/coastal-science.github.io) (`main` tip). |
-| [`from-coastal-science-modular`](https://github.com/VWJF/rcg-sites/tree/from-coastal-science-modular) | Same lineage plus the modular GHA refactor (`refactor/ghaworkflow-modular`). |
+| `main` | Library entry (this README). |
+| [`from-coastal-science`](https://github.com/VWJF/rcg-sites/tree/from-coastal-science) | Filtered import from coastal-science `main`: `.github/`, `nomad/`, `nginx/`, Dockerfiles, docker-compose, `entrypoint.sh`. Commit **authors and dates preserved**; site content history omitted. |
+| [`from-coastal-science-modular`](https://github.com/VWJF/rcg-sites/tree/from-coastal-science-modular) | Same filter from `refactor/ghaworkflow-modular`. |
 
-History was preserved via a normal branch push (all ancestor commits retained). Active extraction of reusable workflows/actions will land on dedicated branches; consumers should pin by tag/SHA once released.
+## Scope
 
-## Related prior art
+Not included: Hugo content, themes, `static/`, blog posts, etc.
 
-Packaging expectations are informed by [`VWJF/mirroring`](https://github.com/VWJF/mirroring) (`dockerize`): clear public surface, README/FAQ design notes, versioned releases, and CI for the library itself.
+## Related
+
+Packaging expectations informed by [`VWJF/mirroring`](https://github.com/VWJF/mirroring) (`dockerize`).
