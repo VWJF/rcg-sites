@@ -1,45 +1,68 @@
-# Cleanup leftover Nomad preview jobs when a PR head branch is deleted.
-# Decap CMS closePR then deleteBranch; GitHub may skip the pull_request/closed
-# run in pages-gh.yml if it cannot build a merge commit. delete events always
-# use this workflow from the default branch, so they still run.
+# Reusable Nomad preview cleanup on branch delete.
+# Site repos keep a thin `on: delete` entrypoint that calls this workflow.
+# Standalone `on: delete` remains for direct use in this repo or vendored copies.
+#
+# Decap CMS closePR then deleteBranch; GitHub may skip pull_request/closed in
+# pages-gh.yml if it cannot build a merge commit. delete entrypoints on the
+# default branch still run.
 name: Cleanup Nomad preview on branch delete
 
 on:
   delete:
 
+  workflow_call:
+    inputs:
+      deleted_ref:
+        description: Deleted branch name (github.event.ref from the caller's delete event).
+        type: string
+        required: true
+      ref_type:
+        description: github.event.ref_type from the caller (branch or tag).
+        type: string
+        required: false
+        default: branch
+
 jobs:
   cleanup-pr-nomad:
-    if: github.event.ref_type == 'branch' && vars.ENABLE_NOMAD == 'true'
+    if: >
+      vars.ENABLE_NOMAD == 'true' &&
+      (
+        (github.event_name == 'workflow_call' && inputs.ref_type == 'branch') ||
+        (github.event_name == 'delete' && github.event.ref_type == 'branch')
+      )
     permissions:
-      contents: read
       pull-requests: read
     environment:
       name: docker-image
-    # runs-on: ubuntu-latest
     runs-on: ${{ vars.RUNS_ON == '' && 'ubuntu-latest' || (startsWith(vars.RUNS_ON, '[') && fromJSON(vars.RUNS_ON) || vars.RUNS_ON) }}
     env:
       NOMAD_VERSION: ${{ vars.NOMAD_VERSION || '1.11.1' }}
       SERVICE: "${{ vars.__SERVICE__ }}"
       NOMAD_NAMESPACE: "${{ vars.__NAMESPACE__ }}"
     steps:
-      - name: Checkout default branch (required for local action)
+      # Checkout this workflow's repo (not the caller) so find-closed-pr.sh is available.
+      # github.workflow_sha is the commit of the reusable workflow when called via workflow_call.
+      - name: Checkout rcg-sites (find-closed-pr.sh)
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          repository: VWJF/rcg-sites
+          ref: ${{ github.workflow_sha }}
+          sparse-checkout: |
+            .github/actions/cleanup-pr-nomad-job
+          sparse-checkout-cone-mode: false
 
       - name: Find closed PR for deleted branch
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
-          DELETED_REF: ${{ github.event.ref }}
+          DELETED_REF: ${{ github.event_name == 'workflow_call' && inputs.deleted_ref || github.event.ref }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: bash "${GITHUB_WORKSPACE}/.github/actions/cleanup-pr-nomad-job/find-closed-pr.sh"
 
       - name: Cleanup Nomad jobs for deleted PR branch
         if: steps.pr.outputs.pr_number != ''
-        # uses: ./.github/actions/cleanup-pr-nomad-job
-        uses: coastal-science/coastal-science.github.io/.github/actions/cleanup-pr-nomad-job@83c69391d0b8e9a2a96e981a89364ff2d7028ff6
+        uses: ./.github/actions/cleanup-pr-nomad-job
         with:
           job_name: ${{ env.SERVICE }}-pr-${{ steps.pr.outputs.pr_number }}-
           nomad_version: ${{ env.NOMAD_VERSION }}
