@@ -138,7 +138,7 @@ Jobs that call a reusable workflow cannot set `environment:` themselves; the lea
 | Name | Purpose |
 | --- | --- |
 | `__NAMESPACE__` | Nomad namespace |
-| `__DATACENTERS__` | Nomad datacenters JSON string |
+| `__DATACENTERS__` | Nomad datacenters list as a **JSON array string**. Square brackets and escaped quotes are required, e.g. `[\"researcher-fir-cloud\"]` (stored/displayed that way in GitHub Actions variables). |
 | `__DATACENTER_CLOUD__` | DNS segment for preview hostnames |
 | `__JOB_DRIVER__` | e.g. `docker` |
 | `__REGISTRY__` | e.g. `ghcr.io` |
