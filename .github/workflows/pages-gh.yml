@@ -1,4 +1,20 @@
-# Workflow for building and deploying Hugo site (Production + Preview)
+# Sample site caller / dispatcher — copy into your site repo; do not `uses:` this file.
+#
+# This is an example entrypoint (triggers + job graph) for end users. The reusable
+# implementations to call are deploy-github-pages.yml and deploy-nomad.yml in this repo.
+# Calling this pages-gh.yml from another repository (nested A→B→C) is unsupported and
+# breaks environment-secret delivery; call deploy-* directly from your copied dispatcher.
+#
+# In your site repo after copying:
+# - Own Environments here (e.g. docker-image) with Nomad/registry secrets and vars.
+# - Leaf deploy-* jobs set `environment:`; jobs with `uses:` cannot.
+# - Pass those secrets by name into deploy-nomad (not secrets: inherit across owners —
+#   inherit leaves environment secrets empty). Same for any wrapper that calls this copy
+#   (e.g. manual-deploy / pages-custom → this file).
+# - Put concurrency on this entrypoint (distinct group per workflow if you run more than one).
+# - Point `uses:` at VWJF/rcg-sites/.github/workflows/deploy-*.yml@<pin> (or your fork/pin).
+#
+# Local `uses: ./.github/workflows/deploy-*.yml` below is only for developing inside rcg-sites.
 name: Deploy Hugo site - Production and Preview
 run-name: ${{ github.event_name == 'pull_request' && format('Preview [PR {0} - {1}] {2}  ', github.event.pull_request.number, github.head_ref, github.event.head_commit.message) || format('[{0}] {1}', github.ref_name, github.event.head_commit.message) }}
 
@@ -66,8 +82,6 @@ on:
         required: false
         default: ''
 
-# Concurrency lives on each site's thin entrypoint (distinct groups per workflow),
-# not here — nested reusable workflows sharing the caller's group deadlock in Actions.
 jobs:
   generate-timestamp:
     permissions: {}
