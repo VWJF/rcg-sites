@@ -1,0 +1,284 @@
+# Leaf: build and push Docker image (Hugo → GHCR).
+# Called by the site dispatcher. Pass docker-image environment secrets by name when cross-owner.
+name: Build Docker image
+
+on:
+  workflow_call:
+    inputs:
+      timestamp:
+        description: Shared run timestamp (image label).
+        type: string
+        required: false
+        default: ''
+      repo_name:
+        description: Repository name without owner (safe.directory / workspace).
+        type: string
+        required: true
+      event_name:
+        description: Original caller event (push, pull_request, workflow_dispatch). Nested calls see workflow_call.
+        type: string
+        required: true
+      event_action:
+        description: Original pull_request action (opened, synchronize, closed, …).
+        type: string
+        required: false
+        default: ''
+      pr_number:
+        description: Pull request number, if the original event was a pull_request.
+        type: string
+        required: false
+        default: ''
+      pr_head_sha:
+        description: PR head SHA (not the merge commit). Empty on non-PR events.
+        type: string
+        required: false
+        default: ''
+      pr_merged:
+        description: Whether the closed PR was merged.
+        type: boolean
+        required: false
+        default: false
+      head_ref:
+        description: PR source branch (github.head_ref).
+        type: string
+        required: false
+        default: ''
+      nomad_job_template:
+        description: Override Nomad job template path (string; choice is only on the caller).
+        type: string
+        required: false
+        default: ''
+      use_decap:
+        description: Override USE_DECAP (true, false, auto).
+        type: string
+        required: false
+        default: auto
+      enable_nomad:
+        description: Force-on override when repo var ENABLE_NOMAD is unset/false. Default false.
+        type: boolean
+        required: false
+        default: false
+      runs_on:
+        description: Runner label (ubuntu-latest) or JSON array (["self-hosted","rcg"]). Empty defaults to ubuntu-latest.
+        type: string
+        required: false
+        default: ''
+    # Image push uses GITHUB_TOKEN; docker-image environment supplies vars. Nomad secrets
+    # belong on deploy.nomad.yml (pass by name from the site dispatcher).
+
+    outputs:
+      tags:
+        description: Docker image tags from build metadata.
+        value: ${{ jobs.build-docker-image.outputs.tags }}
+      commit_sha:
+        description: Commit SHA used for the image.
+        value: ${{ jobs.build-docker-image.outputs.commit_sha }}
+      pr_number:
+        description: PR number when building a preview image.
+        value: ${{ jobs.build-docker-image.outputs.pr_number }}
+
+jobs:
+############################################
+## Create and publish docker image        ##
+## (handles both production and preview)  ##
+############################################
+  build-docker-image:
+    environment: docker-image
+    # Skip build if PR is closed (cleanup job handles that)
+    if: (vars.ENABLE_NOMAD == 'true' || inputs.enable_nomad) && (inputs.event_name != 'pull_request' || inputs.event_action != 'closed')
+    env:
+      HUGO_VERSION: ${{ vars.HUGO_VERSION }} # 0.147.8 # latest  #  0.126.1 
+      HUGO_FORMS: ${{ vars.HUGO_FORMS }}
+      HUGO_SERVICES_GOOGLEANALYTICS_ID: ${{ vars.HUGO_SERVICES_GOOGLEANALYTICS_ID }}
+      # Hugo 0.167+ turns an empty baseURL into https://example.org/. Keep the 0.147 "/" fallback.
+      HUGO_BASEURL: ${{ vars.HUGO_BASEURL || '/' }}
+      
+      REGISTRY: ghcr.io # docker.github.sfu.ca 
+      IMAGE_NAME: ${{ github.repository }}
+      REPO_NAME: ${{ inputs.repo_name }}
+
+    # runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on == '' && 'ubuntu-latest' || (startsWith(inputs.runs_on, '[') && fromJSON(inputs.runs_on) || inputs.runs_on) }}
+    permissions:
+      contents: read
+      packages: write
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
+      id-token: write
+
+    outputs: 
+      tags: ${{ steps.meta.outputs.tags }}
+      commit_sha: ${{ inputs.event_name == 'pull_request' && inputs.pr_head_sha || github.sha }}
+      pr_number: ${{ inputs.pr_number || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: true  # Fetch Hugo themes (true OR recursive) # failing on ubuntu container
+          fetch-depth: 0    # Fetch all history for .GitInfo and .Lastmod
+          # set-safe-directory: '/__w/coastal-science.github.io/coastal-science.github.io'
+          # set-safe-directory: '/__w/${{ env.REPO_NAME }}/${{ env.REPO_NAME }}' # The process '/usr/bin/git' failed with exit code 128, resorting to manual call
+       
+      - name: Set safe directory workaround
+        run: |
+          git config --global --add safe.directory /__w/${{ env.REPO_NAME }}/${{ env.REPO_NAME }}
+
+      - name: Generate tags
+        id: tags
+        run: |
+            # Get the current branch name
+            branch_name=$(git rev-parse --abbrev-ref HEAD)
+            # docker tag limit is 128 characters
+            # The timestamp (YYYY_MM_DD_HH_MM_SS), commit id (7), 
+            # and punctuation (additional _) take up 29 characters.
+            # For 3 catalogs the branch names is can occupy the 
+            # remaining characters = floor((128-29*3)/3) = 13
+            branch_name=${branch_name:0:13} 
+
+            # Get the abbreviated commit hash
+            commit_hash=$(git rev-parse --short HEAD)
+            
+            # Get the current commit datetime (without timezone)
+            commit_date=$(git show -s --format=%ci HEAD)
+            # remove last five characters (timezone information)
+            commit_date=${commit_date:0:${#commit_date}-5} #-5 digits causes 'expression < 0' error. Instead dynamically get the string length.
+            
+            # Get the current commit datetime (without timezone)
+            commit_date=$(git show -s --date=format:'%Y%m%d-%H%M' --format=%cd HEAD)
+
+            # Combine the parts into the desired format
+            result="${branch_name}_${commit_hash}_${commit_date}"
+            
+            # remove leading/trailing spaces
+            # formatted_result=$(awk '{$1=$1;print}')
+            formatted_result=$(echo $result | xargs)
+            # Replace spaces, colons, and dashes with underscores
+            formatted_result=$(echo "$formatted_result" | sed 's/[ :\-]/_/g')
+            
+            #branch_name=$(echo $branch_name | xargs)
+            #branch_name=$(echo "$branch_name" | sed 's/[ :\-]/_/g')
+            
+            commit_hash=$(echo $commit_hash | xargs)
+            commit_hash=$(echo "$commit_hash" | sed 's/[ :\-]/_/g')
+            
+            commit_date=$(echo $commit_date | xargs)
+            #commit_date=$(echo "$commit_date" | sed 's/[ :\-]/_/g')
+            
+            # Print the final result and return it
+            echo "$formatted_result"
+
+            #echo "branch_name=${branch_name}" >> "$GITHUB_OUTPUT"
+            echo "commit_hash=${commit_hash}" >> "$GITHUB_OUTPUT"
+            echo "commit_date=${commit_date}" >> "$GITHUB_OUTPUT"
+
+      - name: List repos in workspace
+        run: |
+          ls -lah
+          du -sh *
+          echo The current workspace repo is..
+          pwd
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: ${{ vars.HUGO_VERSION }}
+          extended: true
+
+      - name: Build and Minify with Hugo
+        env:
+          # For maximum backward compatibility with Hugo modules
+          HUGO_ENVIRONMENT: ${{ inputs.event_name == 'pull_request' && 'preview' || 'production' }}
+          HUGO_ENV: ${{ inputs.event_name == 'pull_request' && 'preview' || 'production' }}
+          HUGO_CI_SHORT_SHA: ${{ github.sha }}
+          HUGO_CI_AUTHOR: ${{ github.actor }}
+        run: |
+          hugo \
+            --gc \
+            --minify \
+            --baseURL "${{ env.HUGO_BASEURL }}"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+     
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} # /${{ env.SERVICE }}
+          labels: |
+            org.opencontainers.image.version=${{ inputs.timestamp }}
+          tags: |
+            # branch event
+            type=ref,event=branch
+            # pull request event
+            type=ref,event=pr,format=pr-{{number}}
+            # minimal (short sha)
+            type=sha
+            # pull request sha with prefix
+            type=sha,prefix=pr-
+            # commit date tag (for branches only)
+            type=raw,value=${{ steps.tags.outputs.commit_date }}
+            # latest tag (for default branch only)
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Nested workflow_call: type=ref,event=pr reads github.event_name (workflow_call), so also tag from the original PR number
+            type=raw,value=pr-${{ inputs.pr_number }},enable=${{ inputs.event_name == 'pull_request' && inputs.pr_number != '' }}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.prod
+          build-contexts: |
+            public=./public
+            nginx=./nginx
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+
+      # - name: Build website with Dockerfile.prod
+      #   env:
+      #     HUGO_BASEURL: "${{ vars.HUGO_BASEURL }}"
+      #     ORIGINS: "${{ vars.ORIGINS }}"
+      #     OAUTH_CLIENT_ID: "${{ vars.OAUTH_GITHUB_CLIENT_ID }}"
+      #     OAUTH_GITHUB_CLIENT_SECRET: "${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}"
+      #     CMS_BACKEND_DEBUG: ${{ vars.CMS_BACKEND_DEBUG || ''}}
+          
+      #   run: |
+      #     echo "${{ steps.meta.outputs.labels }}"
+      #     prefix="--label "
+      #     LABELS=$(sed "s/^/$prefix/" <<< "${{ steps.meta.outputs.labels }}")                           
+      #     echo $LABELS
+      #     echo "${{ steps.meta.outputs.tags }}"
+      #     docker compose -f docker-compose.yaml -f docker-compose.override.yaml build website
+      #     docker tag website ${{ steps.meta.outputs.tags }}
+      #     # docker tag website ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.branch_name }}
+      #     docker tag website ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.commit_hash }}
+      #     docker tag website ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.commit_date }}
+      #     docker tag website ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+      #     docker push --all-tags ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Current workspace
+        if: always()
+        run: du -shc ${GITHUB_WORKSPACE}
+      - name: Clean Up Docker Images
+        if: always()
+        run: docker rmi -f $(docker images '${{ steps.meta.outputs.tags }}' -a -q) || echo "No docker images found to remove...skipping removal."
+      # Conflicts with the autommatic Post Checkout step unless specifically restricted to non-hosted runners.
+      # Needed on self-hosted/custom runners (SFU/RCG-style). Skip on ubuntu-latest — conflicts with Post Checkout.
+      - name: Clean Up Workspace
+        if: always() && inputs.runs_on != '' && inputs.runs_on != 'ubuntu-latest'
+        run: rm -rf "${GITHUB_WORKSPACE}" || true

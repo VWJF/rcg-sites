@@ -1,3 +1,7 @@
+# DEPRECATED on branch modularize: prefer build.docker.yml + deploy.nomad.yml
+# (site dispatcher calls both; see pages-gh.yml).
+# Kept temporarily for reference; new callers should not uses: this file (nesting risk).
+#
 # Called by pages-gh.yml. Do not give this file its own push/pull_request triggers.
 name: Build Docker image and deploy Nomad
 
