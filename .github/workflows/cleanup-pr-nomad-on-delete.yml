@@ -2,9 +2,11 @@
 # Site repos keep a thin `on: delete` entrypoint that calls this workflow.
 # Standalone `on: delete` remains for direct use in this repo or vendored copies.
 #
-# Decap CMS closePR then deleteBranch; GitHub may skip pull_request/closed in
-# pages-gh.yml if it cannot build a merge commit. delete entrypoints on the
-# default branch still run.
+# Intentional backup for cleanup-preview-on-discard in deploy.nomad.yml (same
+# cleanup-pr-nomad-job action; different trigger — not duplicated logic).
+# Decap CMS closePR then deleteBranch; GitHub may skip pull_request/closed
+# (and thus discard cleanup) if it cannot build a merge commit. delete
+# entrypoints on the default branch still run.
 name: Cleanup Nomad preview on branch delete
 
 on:
