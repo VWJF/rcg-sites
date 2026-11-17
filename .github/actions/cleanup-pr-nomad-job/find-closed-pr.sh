@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Resolve a closed pull request number for a deleted head branch.
-# Used by cleanup-pr-nomad-on-delete.yml. Runnable locally with a stub gh on PATH.
+# Used by cleanup.nomad.delete.yml. Runnable locally with a stub gh on PATH.
 #
 # Required env: DELETED_REF, GITHUB_REPOSITORY, GITHUB_REPOSITORY_OWNER, GITHUB_OUTPUT
 set -euo pipefail

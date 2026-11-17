@@ -1,5 +1,5 @@
 # Leaf: build Hugo site and upload Pages artifact.
-# Called by the site dispatcher (sample: pages-gh.yml). Do not nest behind another reusable.
+# Called by the site dispatcher (sample: site.dispatch.yml). Do not nest behind another reusable.
 name: Build GitHub Pages
 
 on:

@@ -510,7 +510,7 @@ jobs:
   # Cleanup Nomad deployment when PR is closed without merge (discard).
   # Merged PRs are cleaned by cleanup-preview-after-deploy after main deploy.
   # If GitHub skips this run (Decap deletes the head branch immediately after
-  # close), cleanup-pr-nomad-on-delete.yml still runs from the default branch.
+  # close), cleanup.nomad.delete.yml still runs from the default branch.
   cleanup-preview-on-discard:
     if: (vars.ENABLE_NOMAD == 'true' || inputs.enable_nomad) && (inputs.event_name == 'pull_request' && inputs.event_action == 'closed' && inputs.pr_merged == false)
     permissions:

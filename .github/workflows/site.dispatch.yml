@@ -3,7 +3,7 @@
 # Orchestrates leaf workflows in this repo (one hop each — do not wrap leaves in another reusable):
 #   build.pages.yml → deploy.pages.yml
 #   build.docker.yml → deploy.nomad.yml
-#   + cleanup-runner when runs_on includes self-hosted or rcg (same job as pages-custom used to own)
+#   + cleanup-runner when runs_on includes self-hosted or rcg
 #
 # In your site repo after copying:
 # - Own Environments here (e.g. docker-image, github-pages) with secrets and vars.
@@ -27,7 +27,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
-  # Manual runs live in manual-deploy.yml (workflow_dispatch → workflow_call here).
+  # Manual runs live in manual.dispatch.yml (workflow_dispatch → workflow_call here).
   workflow_call: # allows reusing the workflow (string input; choice not supported for workflow_call)
     inputs:
       enable_github_pages:
