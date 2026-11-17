@@ -67,17 +67,17 @@ on:
     # required: false — empty string if omitted; set required: true later to fail closed.
     secrets:
       NOMAD_SERVER_TOKEN:
-        required: false
+        required: true
       NOMAD_SERVER_ADDRESS:
-        required: false
+        required: true
       NOMAD_REGISTRY_PASSWORD:
-        required: false
+        required: true
       __RESEARCHER__:
-        required: false
+        required: true
       __DOMAIN_NAME__:
-        required: false
+        required: true
       OAUTH_GITHUB_CLIENT_SECRET:
-        required: false
+        required: true
 
 jobs:
 ############################################
