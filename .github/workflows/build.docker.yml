@@ -87,7 +87,8 @@ jobs:
     # Skip build if PR is closed (cleanup job handles that)
     if: (vars.ENABLE_NOMAD == 'true' || inputs.enable_nomad) && (inputs.event_name != 'pull_request' || inputs.event_action != 'closed')
     env:
-      HUGO_VERSION: ${{ vars.HUGO_VERSION }} # 0.147.8 # latest  #  0.126.1 
+      HUGO_VERSION: ${{ vars.HUGO_VERSION }} # 0.170.0 — LibSass removed; Dart Sass required for css.Sass
+      DART_SASS_VERSION: ${{ vars.DART_SASS_VERSION || '1.93.2' }}
       HUGO_FORMS: ${{ vars.HUGO_FORMS }}
       HUGO_SERVICES_GOOGLEANALYTICS_ID: ${{ vars.HUGO_SERVICES_GOOGLEANALYTICS_ID }}
       # Hugo 0.167+ turns an empty baseURL into https://example.org/. Keep the 0.147 "/" fallback.
@@ -183,7 +184,15 @@ jobs:
         uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: ${{ vars.HUGO_VERSION }}
+          # Hugo 0.170+: single binary (extended alias still published). LibSass is gone.
           extended: true
+
+      # Hugo 0.170 removed LibSass; css.Sass (e.g. Ananke) needs the Dart Sass binary on PATH.
+      # Prefer dart-sass-gha (standalone release) over snap (confinement breaks Hugo cache/temp).
+      - name: Install Dart Sass
+        uses: dw-labs-org/dart-sass-gha@v1
+        with:
+          version: ${{ env.DART_SASS_VERSION }}
 
       - name: Build and Minify with Hugo
         env:
